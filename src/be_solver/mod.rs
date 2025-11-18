@@ -1,6 +1,10 @@
-use nalgebra::DMatrix;
+mod matrix;
+use matrix::{ABMatrix, EquationIndex, VariableIndex};
 
-use crate::components::{Netlist, Resistor, VoltageSource};
+use crate::{
+    be_solver::matrix::XMatrix,
+    components::{Netlist, Resistor, VoltageSource},
+};
 
 /// A Backward Euler method solver for solving transient circuits.
 pub struct BESolver<'n> {
@@ -26,124 +30,93 @@ impl<'n> BESolver<'n> {
         // equation (setting the voltage potential between the two nodes).
         let num_nodes = self.netlist.get_num_nodes();
         let num_voltage_sources = self.netlist.get_voltages_sources().len();
-        let dim = num_nodes + num_voltage_sources;
 
-        // Create the matrix which we will later stamp and then solve.
-        let mut a: DMatrix<f64> = DMatrix::zeros(dim, dim);
-        // Create the B matrix which we will later use to get the solution matrix x.
-        let mut b: DMatrix<f64> = DMatrix::zeros(dim, 1);
+        let mut problem = ABMatrix::new(num_nodes, num_voltage_sources);
 
         self.netlist
             .get_resistors()
             .iter()
             .enumerate()
-            .for_each(|(i, r)| Self::stamp_resistor(r, i, &mut a, &mut b, num_nodes));
+            .for_each(|(i, r)| Self::stamp_resistor(r, i, &mut problem));
 
         self.netlist
             .get_voltages_sources()
             .iter()
             .enumerate()
-            .for_each(|(i, v)| Self::stamp_voltage_source(v, i, &mut a, &mut b, num_nodes));
+            .for_each(|(i, v)| Self::stamp_voltage_source(v, i, &mut problem));
 
-        let x = a.try_inverse().unwrap() * b;
+        let (a, b) = problem.into_ab();
+        let solution = XMatrix::new(a.try_inverse().unwrap() * b, num_nodes, num_voltage_sources);
 
         self.netlist
             .get_resistors_mut()
             .iter_mut()
             .enumerate()
-            .for_each(|(i, r)| Self::update_resistor(r, i, &x, num_nodes));
+            .for_each(|(i, r)| Self::update_resistor(r, i, &solution));
 
         self.netlist
             .get_voltages_sources_mut()
             .iter_mut()
             .enumerate()
-            .for_each(|(i, v)| Self::update_voltage_source(v, i, &x, num_nodes));
+            .for_each(|(i, v)| Self::update_voltage_source(v, i, &solution));
     }
 
-    fn stamp_resistor(
-        resistor: &Resistor,
-        _resistor_index: usize,
-        a: &mut DMatrix<f64>,
-        _b: &mut DMatrix<f64>,
-        _num_nodes: usize,
-    ) {
-        let p = resistor.get_positive_node();
-        let n = resistor.get_negative_node();
+    fn stamp_resistor(resistor: &Resistor, _resistor_index: usize, problem: &mut ABMatrix) {
+        let p_eq = EquationIndex::NodalEquation(resistor.get_positive_node());
+        let n_eq = EquationIndex::NodalEquation(resistor.get_negative_node());
+
+        let p_v = VariableIndex::NodalVoltage(resistor.get_positive_node());
+        let n_v = VariableIndex::NodalVoltage(resistor.get_negative_node());
+
+        // Compute resistance conductance
         let g = 1.0 / resistor.get_resistance();
 
-        if p != 0 {
-            *a.get_mut((p - 1, p - 1)).unwrap() -= g;
-            if n != 0 {
-                *a.get_mut((p - 1, n - 1)).unwrap() += g;
-            }
-        }
+        problem.get_coefficient_mut(p_eq, p_v).map(|a| *a += g);
+        problem.get_coefficient_mut(p_eq, n_v).map(|a| *a -= g);
 
-        if n != 0 {
-            *a.get_mut((n - 1, n - 1)).unwrap() -= g;
-            if p != 0 {
-                *a.get_mut((n - 1, p - 1)).unwrap() += g;
-            }
-        }
+        problem.get_coefficient_mut(n_eq, p_v).map(|a| *a += g);
+        problem.get_coefficient_mut(n_eq, n_v).map(|a| *a -= g);
     }
 
     fn stamp_voltage_source(
         voltage_source: &VoltageSource,
         voltage_source_index: usize,
-        a: &mut DMatrix<f64>,
-        b: &mut DMatrix<f64>,
-        num_nodes: usize,
+        problem: &mut ABMatrix,
     ) {
-        let p = voltage_source.get_positive_node();
-        let n = voltage_source.get_negative_node();
+        let p_eq = EquationIndex::NodalEquation(voltage_source.get_positive_node());
+        let n_eq = EquationIndex::NodalEquation(voltage_source.get_negative_node());
+        let v_eq = EquationIndex::VoltageSourceEquation(voltage_source_index);
 
-        if p != 0 {
-            *a.get_mut((p - 1, num_nodes + voltage_source_index))
-                .unwrap() = 1.0;
-            *a.get_mut((num_nodes + voltage_source_index, p - 1))
-                .unwrap() = 1.0;
-        }
+        let p_v = VariableIndex::NodalVoltage(voltage_source.get_positive_node());
+        let n_v = VariableIndex::NodalVoltage(voltage_source.get_negative_node());
+        let v_i = VariableIndex::VoltageSourceCurrent(voltage_source_index);
 
-        if n != 0 {
-            *a.get_mut((n - 1, num_nodes + voltage_source_index))
-                .unwrap() = -1.0;
-            *a.get_mut((num_nodes + voltage_source_index, n - 1))
-                .unwrap() = -1.0;
-        }
+        problem.get_coefficient_mut(p_eq, v_i).map(|a| *a -= 1.0);
+        problem.get_coefficient_mut(n_eq, v_i).map(|a| *a += 1.0);
 
-        *b.get_mut((num_nodes + voltage_source_index, 0)).unwrap() = voltage_source.get_voltage();
+        problem.get_coefficient_mut(v_eq, p_v).map(|a| *a += 1.0);
+        problem.get_coefficient_mut(v_eq, n_v).map(|a| *a -= 1.0);
+        problem
+            .get_result_mut(v_eq)
+            .map(|a| *a += voltage_source.get_voltage());
     }
 
-    fn update_resistor(
-        resistor: &mut Resistor,
-        _resistor_index: usize,
-        x: &DMatrix<f64>,
-        _num_nodes: usize,
-    ) {
-        let p = resistor.get_positive_node();
-        let n = resistor.get_negative_node();
+    fn update_resistor(resistor: &mut Resistor, _resistor_index: usize, solution: &XMatrix) {
+        let p_v = VariableIndex::NodalVoltage(resistor.get_positive_node());
+        let n_v = VariableIndex::NodalVoltage(resistor.get_negative_node());
 
-        let vp = if p != 0 {
-            *x.get((p - 1, 0)).unwrap()
-        } else {
-            0.0
-        };
-
-        let vn = if n != 0 {
-            *x.get((n - 1, 0)).unwrap()
-        } else {
-            0.0
-        };
-
-        resistor.set_voltage(vp - vn);
+        resistor
+            .set_voltage(solution.get_variable(p_v).unwrap() - solution.get_variable(n_v).unwrap());
     }
 
     fn update_voltage_source(
         voltage_source: &mut VoltageSource,
         voltage_source_index: usize,
-        x: &DMatrix<f64>,
-        num_nodes: usize,
+        solution: &XMatrix,
     ) {
-        voltage_source.set_current(*x.get((num_nodes + voltage_source_index, 0)).unwrap());
+        let v_i = VariableIndex::VoltageSourceCurrent(voltage_source_index);
+
+        voltage_source.set_current(solution.get_variable(v_i).unwrap());
     }
 }
 
