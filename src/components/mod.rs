@@ -3,6 +3,9 @@ use std::fmt::Debug;
 mod resistor;
 pub use resistor::Resistor;
 
+mod capacitor;
+pub use capacitor::Capacitor;
+
 mod voltage_source;
 pub use voltage_source::VoltageSource;
 
@@ -12,6 +15,7 @@ pub use current_source::CurrentSource;
 /// A struct that represents a collection of electrical components connected to each other.
 pub struct Netlist {
     resistors: Vec<Resistor>,
+    capacitors: Vec<Capacitor>,
     voltage_sources: Vec<VoltageSource>,
     current_sources: Vec<CurrentSource>,
 }
@@ -21,6 +25,7 @@ impl Netlist {
     pub fn new() -> Self {
         Self {
             resistors: Vec::new(),
+            capacitors: Vec::new(),
             voltage_sources: Vec::new(),
             current_sources: Vec::new(),
         }
@@ -46,6 +51,28 @@ impl Netlist {
     /// Gets mutatable reference to all the resistors in the netlist in the order they were added.
     pub fn get_resistors_mut(&mut self) -> &mut Vec<Resistor> {
         &mut self.resistors
+    }
+
+    /// Adds a single capacitor to the netlist.
+    pub fn add_capacitor(&mut self, capacitor: Capacitor) -> &mut Self {
+        self.capacitors.push(capacitor);
+        self
+    }
+
+    /// Adds multiple capacitors to the netlist.
+    pub fn add_capacitors(&mut self, capacitors: impl Iterator<Item = Capacitor>) -> &mut Self {
+        self.capacitors.extend(capacitors);
+        self
+    }
+
+    /// Gets all the capacitors in the netlist in the order they were added.
+    pub fn get_capacitors(&self) -> &Vec<Capacitor> {
+        &self.capacitors
+    }
+
+    /// Gets mutatable reference to all the capacitors in the netlist in the order they were added.
+    pub fn get_capacitors_mut(&mut self) -> &mut Vec<Capacitor> {
+        &mut self.capacitors
     }
 
     /// Adds a single voltage source to the netlist.
@@ -80,7 +107,7 @@ impl Netlist {
         self
     }
 
-    /// Adds multiple voltage sources to the netlist.
+    /// Adds multiple current sources to the netlist.
     pub fn add_current_sources(
         &mut self,
         current_sources: impl Iterator<Item = CurrentSource>,
@@ -89,12 +116,12 @@ impl Netlist {
         self
     }
 
-    /// Gets all the voltage sources in the netlist in the order they were added.
+    /// Gets all the current sources in the netlist in the order they were added.
     pub fn get_current_sources(&self) -> &Vec<CurrentSource> {
         &self.current_sources
     }
 
-    /// Gets mutatable references to all the voltage sources in the netlist in the order they were
+    /// Gets mutatable references to all the current sources in the netlist in the order they were
     /// added.
     pub fn get_current_sources_mut(&mut self) -> &mut Vec<CurrentSource> {
         &mut self.current_sources
