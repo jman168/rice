@@ -1,5 +1,3 @@
-use std::num;
-
 use nalgebra::DMatrix;
 
 use crate::components::{Netlist, Resistor, VoltageSource};
