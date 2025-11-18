@@ -10,4 +10,4 @@ For passive components (resistors, inductors, capacitors, etc...) positive curre
 For active components (voltage sources, current sources, etc...) positive current flows into the positive voltage connection.
 
 ## Nodal Currents
-For nodal currents positive current is current flowing into the node and negative current is current flowing out of the node.
+For nodal currents positive current is current flowing out of the node and negative current is current flowing into the node.

@@ -62,20 +62,22 @@ impl<'n> BESolver<'n> {
     }
 
     fn stamp_resistor(resistor: &Resistor, _resistor_index: usize, problem: &mut ABMatrix) {
-        let p_eq = EquationIndex::NodalEquation(resistor.get_positive_node());
-        let n_eq = EquationIndex::NodalEquation(resistor.get_negative_node());
+        let positive_equation_index = EquationIndex::NodalEquation(resistor.get_positive_node());
+        let negative_equation_index = EquationIndex::NodalEquation(resistor.get_negative_node());
 
-        let p_v = VariableIndex::NodalVoltage(resistor.get_positive_node());
-        let n_v = VariableIndex::NodalVoltage(resistor.get_negative_node());
+        let positive_voltage_index = VariableIndex::NodalVoltage(resistor.get_positive_node());
+        let negative_voltage_index = VariableIndex::NodalVoltage(resistor.get_negative_node());
 
         // Compute resistance conductance
         let g = 1.0 / resistor.get_resistance();
 
-        problem.coefficient_add(p_eq, p_v, g);
-        problem.coefficient_add(p_eq, n_v, -g);
+        // Current flowing out of positive node is (v_positive - v_negative) / R
+        problem.coefficient_add(positive_equation_index, positive_voltage_index, g);
+        problem.coefficient_add(positive_equation_index, negative_voltage_index, -g);
 
-        problem.coefficient_add(n_eq, p_v, -g);
-        problem.coefficient_add(n_eq, n_v, g);
+        // Current flowing out of positive node is -(v_positive - v_negative) / R
+        problem.coefficient_add(negative_equation_index, positive_voltage_index, -g);
+        problem.coefficient_add(negative_equation_index, negative_voltage_index, g);
     }
 
     fn stamp_voltage_source(
@@ -83,28 +85,37 @@ impl<'n> BESolver<'n> {
         voltage_source_index: usize,
         problem: &mut ABMatrix,
     ) {
-        let p_eq = EquationIndex::NodalEquation(voltage_source.get_positive_node());
-        let n_eq = EquationIndex::NodalEquation(voltage_source.get_negative_node());
-        let v_eq = EquationIndex::VoltageSourceEquation(voltage_source_index);
+        let positive_equation_index =
+            EquationIndex::NodalEquation(voltage_source.get_positive_node());
+        let negative_equation_index =
+            EquationIndex::NodalEquation(voltage_source.get_negative_node());
+        let source_equation_index = EquationIndex::VoltageSourceEquation(voltage_source_index);
 
-        let p_v = VariableIndex::NodalVoltage(voltage_source.get_positive_node());
-        let n_v = VariableIndex::NodalVoltage(voltage_source.get_negative_node());
-        let v_i = VariableIndex::VoltageSourceCurrent(voltage_source_index);
+        let positive_voltage_index =
+            VariableIndex::NodalVoltage(voltage_source.get_positive_node());
+        let negative_voltage_index =
+            VariableIndex::NodalVoltage(voltage_source.get_negative_node());
+        let source_current_index = VariableIndex::VoltageSourceCurrent(voltage_source_index);
 
-        problem.coefficient_add(p_eq, v_i, -1.0);
-        problem.coefficient_add(n_eq, v_i, 1.0);
+        // Current flowing out of positive node is -i_source
+        problem.coefficient_add(positive_equation_index, source_current_index, -1.0);
+        // Current flowing out of negative node is i_source
+        problem.coefficient_add(negative_equation_index, source_current_index, 1.0);
 
-        problem.coefficient_add(v_eq, p_v, 1.0);
-        problem.coefficient_add(v_eq, n_v, -1.0);
-        problem.result_add(v_eq, voltage_source.get_voltage());
+        // Source equation is v_positive - v_negative = v_source
+        problem.coefficient_add(source_equation_index, positive_voltage_index, 1.0);
+        problem.coefficient_add(source_equation_index, negative_voltage_index, -1.0);
+        problem.result_add(source_equation_index, voltage_source.get_voltage());
     }
 
     fn update_resistor(resistor: &mut Resistor, _resistor_index: usize, solution: &XMatrix) {
-        let p_v = VariableIndex::NodalVoltage(resistor.get_positive_node());
-        let n_v = VariableIndex::NodalVoltage(resistor.get_negative_node());
+        let positive_voltage_index = VariableIndex::NodalVoltage(resistor.get_positive_node());
+        let negative_voltage_index = VariableIndex::NodalVoltage(resistor.get_negative_node());
 
-        resistor
-            .set_voltage(solution.get_variable(p_v).unwrap() - solution.get_variable(n_v).unwrap());
+        resistor.set_voltage(
+            solution.get_variable(positive_voltage_index).unwrap()
+                - solution.get_variable(negative_voltage_index).unwrap(),
+        );
     }
 
     fn update_voltage_source(
@@ -112,9 +123,9 @@ impl<'n> BESolver<'n> {
         voltage_source_index: usize,
         solution: &XMatrix,
     ) {
-        let v_i = VariableIndex::VoltageSourceCurrent(voltage_source_index);
+        let source_current_index = VariableIndex::VoltageSourceCurrent(voltage_source_index);
 
-        voltage_source.set_current(solution.get_variable(v_i).unwrap());
+        voltage_source.set_current(solution.get_variable(source_current_index).unwrap());
     }
 }
 
