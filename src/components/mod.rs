@@ -6,6 +6,9 @@ pub use resistor::Resistor;
 mod capacitor;
 pub use capacitor::Capacitor;
 
+mod inductor;
+pub use inductor::Inductor;
+
 mod voltage_source;
 pub use voltage_source::VoltageSource;
 
@@ -16,6 +19,7 @@ pub use current_source::CurrentSource;
 pub struct Netlist {
     resistors: Vec<Resistor>,
     capacitors: Vec<Capacitor>,
+    inductors: Vec<Inductor>,
     voltage_sources: Vec<VoltageSource>,
     current_sources: Vec<CurrentSource>,
 }
@@ -26,6 +30,7 @@ impl Netlist {
         Self {
             resistors: Vec::new(),
             capacitors: Vec::new(),
+            inductors: Vec::new(),
             voltage_sources: Vec::new(),
             current_sources: Vec::new(),
         }
@@ -73,6 +78,28 @@ impl Netlist {
     /// Gets mutatable reference to all the capacitors in the netlist in the order they were added.
     pub fn get_capacitors_mut(&mut self) -> &mut Vec<Capacitor> {
         &mut self.capacitors
+    }
+
+    /// Adds a single inductor to the netlist.
+    pub fn add_inductor(&mut self, inductor: Inductor) -> &mut Self {
+        self.inductors.push(inductor);
+        self
+    }
+
+    /// Adds multiple capacitors to the netlist.
+    pub fn add_inductors(&mut self, inductors: impl Iterator<Item = Inductor>) -> &mut Self {
+        self.inductors.extend(inductors);
+        self
+    }
+
+    /// Gets all the capacitors in the netlist in the order they were added.
+    pub fn get_inductors(&self) -> &Vec<Inductor> {
+        &self.inductors
+    }
+
+    /// Gets mutatable reference to all the capacitors in the netlist in the order they were added.
+    pub fn get_inductors_mut(&mut self) -> &mut Vec<Inductor> {
+        &mut self.inductors
     }
 
     /// Adds a single voltage source to the netlist.
@@ -170,6 +197,12 @@ impl Debug for Netlist {
 
         writeln!(f, "\tCapacitors: [")?;
         for c in &self.capacitors {
+            writeln!(f, "\t\t{:?},", c)?;
+        }
+        writeln!(f, "\t]")?;
+
+        writeln!(f, "\tInductors: [")?;
+        for c in &self.inductors {
             writeln!(f, "\t\t{:?},", c)?;
         }
         writeln!(f, "\t]")?;

@@ -3,7 +3,7 @@ use matrix::{ABMatrix, EquationIndex, VariableIndex};
 
 use crate::{
     be_solver::matrix::XMatrix,
-    components::{Capacitor, CurrentSource, Netlist, Resistor, VoltageSource},
+    components::{Capacitor, CurrentSource, Inductor, Netlist, Resistor, VoltageSource},
 };
 
 /// A Backward Euler method solver for solving transient circuits.
@@ -46,6 +46,12 @@ impl<'n> BESolver<'n> {
             .for_each(|(i, c)| Self::stamp_capacitor(c, i, &mut problem, dt));
 
         self.netlist
+            .get_inductors()
+            .iter()
+            .enumerate()
+            .for_each(|(i, c)| Self::stamp_inductor(c, i, &mut problem, dt));
+
+        self.netlist
             .get_voltages_sources()
             .iter()
             .enumerate()
@@ -71,6 +77,12 @@ impl<'n> BESolver<'n> {
             .iter_mut()
             .enumerate()
             .for_each(|(i, c)| Self::update_capacitor(c, i, &solution, dt));
+
+        self.netlist
+            .get_inductors_mut()
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, c)| Self::update_inductor(c, i, &solution, dt));
 
         self.netlist
             .get_voltages_sources_mut()
@@ -136,6 +148,37 @@ impl<'n> BESolver<'n> {
         problem.coefficient_add(negative_equation_index, positive_voltage_index, -c / dt);
         problem.coefficient_add(negative_equation_index, negative_voltage_index, c / dt);
         problem.result_add(negative_equation_index, -c * capacitor.get_voltage() / dt);
+    }
+
+    fn stamp_inductor(
+        inductor: &Inductor,
+        _inductor_index: usize,
+        problem: &mut ABMatrix,
+        dt: f64,
+    ) {
+        let positive_equation_index = EquationIndex::NodalEquation(inductor.get_positive_node());
+        let negative_equation_index = EquationIndex::NodalEquation(inductor.get_negative_node());
+
+        let positive_voltage_index = VariableIndex::NodalVoltage(inductor.get_positive_node());
+        let negative_voltage_index = VariableIndex::NodalVoltage(inductor.get_negative_node());
+
+        let l = inductor.get_inductance();
+
+        // The differential equation describing an inductor is v = L*di/dt.
+        // Discretizing we get v = L*(i_new - i_old)/dt.
+        // Further expanding this we get v_positve - v_negative = L*(i_new - i_old)/dt.
+        // Doing some algebra to solver for i_new we get:
+        // i_new = v_positive*dt/L - v_negative*dt/L + i_old.
+
+        // Current flowing out of the positive node is v_positive*dt/L - v_negative*dt/L + i_old.
+        problem.coefficient_add(positive_equation_index, positive_voltage_index, dt / l);
+        problem.coefficient_add(positive_equation_index, negative_voltage_index, -dt / l);
+        problem.result_add(positive_equation_index, -inductor.get_current());
+
+        // Current flowing out of the negative node is -v_positive*dt/L + v_negative*dt/L - i_old.
+        problem.coefficient_add(negative_equation_index, positive_voltage_index, -dt / l);
+        problem.coefficient_add(negative_equation_index, negative_voltage_index, dt / l);
+        problem.result_add(negative_equation_index, inductor.get_current());
     }
 
     fn stamp_voltage_source(
@@ -223,6 +266,27 @@ impl<'n> BESolver<'n> {
         capacitor.set_voltage(new_voltage);
     }
 
+    fn update_inductor(
+        inductor: &mut Inductor,
+        _inductor_index: usize,
+        solution: &XMatrix,
+        dt: f64,
+    ) {
+        let positive_voltage_index = VariableIndex::NodalVoltage(inductor.get_positive_node());
+        let negative_voltage_index = VariableIndex::NodalVoltage(inductor.get_negative_node());
+
+        inductor.set_voltage(
+            solution.get_variable(positive_voltage_index).unwrap()
+                - solution.get_variable(negative_voltage_index).unwrap(),
+        );
+
+        // Discretized equation is i_new = v_positive*dt/L - v_negative*dt/L + i_old (see inductor stamping function).
+
+        inductor.set_current(
+            inductor.get_voltage() * dt / inductor.get_inductance() + inductor.get_current(),
+        );
+    }
+
     fn update_voltage_source(
         voltage_source: &mut VoltageSource,
         voltage_source_index: usize,
@@ -256,7 +320,7 @@ impl<'n> BESolver<'n> {
 mod test {
     use crate::{
         BESolver,
-        components::{Capacitor, CurrentSource, Netlist, Resistor, VoltageSource},
+        components::{Capacitor, CurrentSource, Inductor, Netlist, Resistor, VoltageSource},
     };
 
     use approx::assert_relative_eq;
@@ -522,6 +586,113 @@ mod test {
         assert_relative_eq!(
             netlist.get_capacitors()[0].get_current(),
             0.000367879441171,
+            max_relative = 0.001
+        );
+    }
+
+    #[test]
+    fn test_voltage_source_inductor() {
+        let mut netlist = Netlist::new();
+        netlist
+            .add_voltage_source(VoltageSource::new(1, 0, 1.0))
+            .add_inductor(Inductor::new(1, 0, 0.5, 0.0));
+
+        let mut solver = BESolver::new(&mut netlist);
+        solver.solve(0.25);
+
+        println!("{:?}", netlist);
+
+        assert_relative_eq!(
+            netlist.get_voltages_sources()[0].get_voltage(),
+            1.0,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_voltages_sources()[0].get_current(),
+            0.5,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_inductors()[0].get_voltage(),
+            1.0,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_inductors()[0].get_current(),
+            0.5,
+            max_relative = 0.001
+        );
+
+        let mut solver = BESolver::new(&mut netlist);
+        solver.solve(0.75);
+
+        println!("{:?}", netlist);
+
+        assert_relative_eq!(
+            netlist.get_voltages_sources()[0].get_voltage(),
+            1.0,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_voltages_sources()[0].get_current(),
+            2.0,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_inductors()[0].get_voltage(),
+            1.0,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_inductors()[0].get_current(),
+            2.0,
+            max_relative = 0.001
+        );
+    }
+
+    #[test]
+    fn test_rl_step() {
+        let mut netlist = Netlist::new();
+        netlist
+            .add_voltage_source(VoltageSource::new(1, 0, 1.0))
+            .add_resistor(Resistor::new(1, 2, 0.001))
+            .add_inductor(Inductor::new(2, 0, 0.01, 0.0));
+
+        let mut solver = BESolver::new(&mut netlist);
+        for _ in 0..1000 {
+            solver.solve(0.001);
+        }
+
+        println!("{:?}", netlist);
+
+        assert_relative_eq!(
+            netlist.get_voltages_sources()[0].get_voltage(),
+            1.0,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_voltages_sources()[0].get_current(),
+            95.162581964,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_resistors()[0].get_voltage(),
+            0.095162581964,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_resistors()[0].get_current(),
+            95.162581964,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_inductors()[0].get_voltage(),
+            0.904837418036,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_inductors()[0].get_current(),
+            95.162581964,
             max_relative = 0.001
         );
     }
