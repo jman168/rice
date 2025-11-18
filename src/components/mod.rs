@@ -163,14 +163,26 @@ impl Debug for Netlist {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Netlist:")?;
         writeln!(f, "\tResistors: [")?;
-        for r in &self.resistors {
-            writeln!(f, "\t\t{:?},", r)?;
+        for c in &self.resistors {
+            writeln!(f, "\t\t{:?},", c)?;
+        }
+        writeln!(f, "\t]")?;
+
+        writeln!(f, "\tCapacitors: [")?;
+        for c in &self.capacitors {
+            writeln!(f, "\t\t{:?},", c)?;
         }
         writeln!(f, "\t]")?;
 
         writeln!(f, "\tVoltage Sources: [")?;
-        for v in &self.voltage_sources {
-            writeln!(f, "\t\t{:?},", v)?;
+        for c in &self.voltage_sources {
+            writeln!(f, "\t\t{:?},", c)?;
+        }
+        writeln!(f, "\t]")?;
+
+        writeln!(f, "\tCurrent Sources: [")?;
+        for c in &self.current_sources {
+            writeln!(f, "\t\t{:?},", c)?;
         }
         writeln!(f, "\t]")
     }

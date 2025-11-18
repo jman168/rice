@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 pub struct Capacitor {
     // Static variables
     positive_node: usize,
@@ -57,5 +59,17 @@ impl Capacitor {
 
     pub fn get_power(&self) -> f64 {
         self.get_voltage() * self.get_current()
+    }
+}
+
+impl Debug for Capacitor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{v: {}, i: {}, p: {}}}",
+            self.get_voltage(),
+            self.get_current(),
+            self.get_power()
+        )
     }
 }
