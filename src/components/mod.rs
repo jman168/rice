@@ -6,10 +6,14 @@ pub use resistor::Resistor;
 mod voltage_source;
 pub use voltage_source::VoltageSource;
 
+mod current_source;
+pub use current_source::CurrentSource;
+
 /// A struct that represents a collection of electrical components connected to each other.
 pub struct Netlist {
     resistors: Vec<Resistor>,
     voltage_sources: Vec<VoltageSource>,
+    current_sources: Vec<CurrentSource>,
 }
 
 impl Netlist {
@@ -18,6 +22,7 @@ impl Netlist {
         Self {
             resistors: Vec::new(),
             voltage_sources: Vec::new(),
+            current_sources: Vec::new(),
         }
     }
 
@@ -69,6 +74,32 @@ impl Netlist {
         &mut self.voltage_sources
     }
 
+    /// Adds a single current source to the netlist.
+    pub fn add_current_source(&mut self, current_source: CurrentSource) -> &mut Self {
+        self.current_sources.push(current_source);
+        self
+    }
+
+    /// Adds multiple voltage sources to the netlist.
+    pub fn add_current_sources(
+        &mut self,
+        current_sources: impl Iterator<Item = CurrentSource>,
+    ) -> &mut Self {
+        self.current_sources.extend(current_sources);
+        self
+    }
+
+    /// Gets all the voltage sources in the netlist in the order they were added.
+    pub fn get_current_sources(&self) -> &Vec<CurrentSource> {
+        &self.current_sources
+    }
+
+    /// Gets mutatable references to all the voltage sources in the netlist in the order they were
+    /// added.
+    pub fn get_current_sources_mut(&mut self) -> &mut Vec<CurrentSource> {
+        &mut self.current_sources
+    }
+
     /// Gets the total number of nodes in the netlist (maximum node number referenced by all
     /// components.
     pub fn get_num_nodes(&self) -> usize {
@@ -84,8 +115,14 @@ impl Netlist {
             .map(|v| v.get_positive_node().max(v.get_negative_node()))
             .max()
             .unwrap_or(0);
+        let max_i_node = self
+            .current_sources
+            .iter()
+            .map(|i| i.get_positive_node().max(i.get_negative_node()))
+            .max()
+            .unwrap_or(0);
 
-        max_r_node.max(max_v_node)
+        max_r_node.max(max_v_node).max(max_i_node)
     }
 }
 

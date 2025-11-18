@@ -3,7 +3,7 @@ use matrix::{ABMatrix, EquationIndex, VariableIndex};
 
 use crate::{
     be_solver::matrix::XMatrix,
-    components::{Netlist, Resistor, VoltageSource},
+    components::{CurrentSource, Netlist, Resistor, VoltageSource},
 };
 
 /// A Backward Euler method solver for solving transient circuits.
@@ -37,13 +37,19 @@ impl<'n> BESolver<'n> {
             .get_resistors()
             .iter()
             .enumerate()
-            .for_each(|(i, r)| Self::stamp_resistor(r, i, &mut problem));
+            .for_each(|(i, c)| Self::stamp_resistor(c, i, &mut problem));
 
         self.netlist
             .get_voltages_sources()
             .iter()
             .enumerate()
-            .for_each(|(i, v)| Self::stamp_voltage_source(v, i, &mut problem));
+            .for_each(|(i, c)| Self::stamp_voltage_source(c, i, &mut problem));
+
+        self.netlist
+            .get_current_sources()
+            .iter()
+            .enumerate()
+            .for_each(|(i, c)| Self::stamp_current_source(c, i, &mut problem));
 
         let (a, b) = problem.into_ab();
         let solution = XMatrix::new(a.try_inverse().unwrap() * b, num_nodes, num_voltage_sources);
@@ -52,13 +58,19 @@ impl<'n> BESolver<'n> {
             .get_resistors_mut()
             .iter_mut()
             .enumerate()
-            .for_each(|(i, r)| Self::update_resistor(r, i, &solution));
+            .for_each(|(i, c)| Self::update_resistor(c, i, &solution));
 
         self.netlist
             .get_voltages_sources_mut()
             .iter_mut()
             .enumerate()
-            .for_each(|(i, v)| Self::update_voltage_source(v, i, &solution));
+            .for_each(|(i, c)| Self::update_voltage_source(c, i, &solution));
+
+        self.netlist
+            .get_current_sources_mut()
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, c)| Self::update_current_source(c, i, &solution));
     }
 
     fn stamp_resistor(resistor: &Resistor, _resistor_index: usize, problem: &mut ABMatrix) {
@@ -108,6 +120,25 @@ impl<'n> BESolver<'n> {
         problem.result_add(source_equation_index, voltage_source.get_voltage());
     }
 
+    fn stamp_current_source(
+        current_source: &CurrentSource,
+        _current_source_index: usize,
+        problem: &mut ABMatrix,
+    ) {
+        let positive_equation_index =
+            EquationIndex::NodalEquation(current_source.get_positive_node());
+        let negative_equation_index =
+            EquationIndex::NodalEquation(current_source.get_negative_node());
+
+        // NOTE: the signs are flipped here because they take the form of constants, not
+        // coefficients.
+
+        // Current flowing out of positive node is -i_source
+        problem.result_add(positive_equation_index, current_source.get_current());
+        // Current flowing out of negative node is i_source
+        problem.result_add(negative_equation_index, -current_source.get_current());
+    }
+
     fn update_resistor(resistor: &mut Resistor, _resistor_index: usize, solution: &XMatrix) {
         let positive_voltage_index = VariableIndex::NodalVoltage(resistor.get_positive_node());
         let negative_voltage_index = VariableIndex::NodalVoltage(resistor.get_negative_node());
@@ -127,13 +158,29 @@ impl<'n> BESolver<'n> {
 
         voltage_source.set_current(solution.get_variable(source_current_index).unwrap());
     }
+
+    fn update_current_source(
+        current_source: &mut CurrentSource,
+        _current_source_index: usize,
+        solution: &XMatrix,
+    ) {
+        let positive_voltage_index =
+            VariableIndex::NodalVoltage(current_source.get_positive_node());
+        let negative_voltage_index =
+            VariableIndex::NodalVoltage(current_source.get_negative_node());
+
+        current_source.set_voltage(
+            solution.get_variable(positive_voltage_index).unwrap()
+                - solution.get_variable(negative_voltage_index).unwrap(),
+        );
+    }
 }
 
 #[cfg(test)]
 mod test {
     use crate::{
         BESolver,
-        components::{Netlist, Resistor, VoltageSource},
+        components::{CurrentSource, Netlist, Resistor, VoltageSource},
     };
 
     #[test]
@@ -148,6 +195,7 @@ mod test {
 
         println!("{:?}", netlist);
 
+        assert_eq!(netlist.get_voltages_sources()[0].get_voltage(), 10.0);
         assert_eq!(netlist.get_voltages_sources()[0].get_current(), 5.0);
         assert_eq!(netlist.get_voltages_sources()[0].get_power(), 50.0);
         assert_eq!(netlist.get_resistors()[0].get_voltage(), 10.0);
@@ -167,6 +215,7 @@ mod test {
 
         println!("{:?}", netlist);
 
+        assert_eq!(netlist.get_voltages_sources()[0].get_voltage(), 10.0);
         assert_eq!(netlist.get_voltages_sources()[0].get_current(), 5.0);
         assert_eq!(netlist.get_voltages_sources()[0].get_power(), 50.0);
         assert_eq!(netlist.get_resistors()[0].get_voltage(), -10.0);
@@ -187,6 +236,7 @@ mod test {
 
         println!("{:?}", netlist);
 
+        assert_eq!(netlist.get_voltages_sources()[0].get_voltage(), 5.0);
         assert_eq!(netlist.get_voltages_sources()[0].get_current(), 1.0);
         assert_eq!(netlist.get_voltages_sources()[0].get_power(), 5.0);
         assert_eq!(netlist.get_resistors()[0].get_voltage(), 4.0);
@@ -195,6 +245,26 @@ mod test {
         assert_eq!(netlist.get_resistors()[1].get_voltage(), 1.0);
         assert_eq!(netlist.get_resistors()[1].get_current(), 1.0);
         assert_eq!(netlist.get_resistors()[1].get_power(), 1.0);
+    }
+
+    #[test]
+    fn test_current_source_resistor() {
+        let mut netlist = Netlist::new();
+        netlist
+            .add_current_source(CurrentSource::new(1, 0, 5.0))
+            .add_resistor(Resistor::new(1, 0, 2.0));
+
+        let mut solver = BESolver::new(&mut netlist);
+        solver.solve(0.001);
+
+        println!("{:?}", netlist);
+
+        assert_eq!(netlist.get_current_sources()[0].get_voltage(), 10.0);
+        assert_eq!(netlist.get_current_sources()[0].get_current(), 5.0);
+        assert_eq!(netlist.get_current_sources()[0].get_power(), 50.0);
+        assert_eq!(netlist.get_resistors()[0].get_voltage(), 10.0);
+        assert_eq!(netlist.get_resistors()[0].get_current(), 5.0);
+        assert_eq!(netlist.get_resistors()[0].get_power(), 50.0);
     }
 
     // #[test]
