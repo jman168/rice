@@ -262,7 +262,7 @@ mod test {
     use approx::assert_relative_eq;
 
     #[test]
-    fn test_single_resistor() {
+    fn test_voltage_source_resistor() {
         let mut netlist = Netlist::new();
         netlist
             .add_voltage_source(VoltageSource::new(1, 0, 10.0))
@@ -296,11 +296,12 @@ mod test {
     }
 
     #[test]
-    fn test_single_resistor_source_flip() {
+    fn test_two_voltage_source_resistor() {
         let mut netlist = Netlist::new();
         netlist
-            .add_voltage_source(VoltageSource::new(0, 1, 10.0))
-            .add_resistor(Resistor::new(1, 0, 2.0));
+            .add_voltage_source(VoltageSource::new(1, 0, 10.0))
+            .add_resistor(Resistor::new(1, 2, 2.0))
+            .add_voltage_source(VoltageSource::new(2, 0, 5.0));
 
         let mut solver = BESolver::new(&mut netlist);
         solver.solve(0.001);
@@ -314,23 +315,33 @@ mod test {
         );
         assert_relative_eq!(
             netlist.get_voltages_sources()[0].get_current(),
+            2.5,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
+            netlist.get_voltages_sources()[1].get_voltage(),
             5.0,
             max_relative = 0.001
         );
         assert_relative_eq!(
+            netlist.get_voltages_sources()[1].get_current(),
+            -2.5,
+            max_relative = 0.001
+        );
+        assert_relative_eq!(
             netlist.get_resistors()[0].get_voltage(),
-            -10.0,
+            5.0,
             max_relative = 0.001
         );
         assert_relative_eq!(
             netlist.get_resistors()[0].get_current(),
-            -5.0,
+            2.5,
             max_relative = 0.001
         );
     }
 
     #[test]
-    fn test_voltage_divider() {
+    fn test_voltage_source_voltage_divider() {
         let mut netlist = Netlist::new();
         netlist
             .add_voltage_source(VoltageSource::new(1, 0, 5.0))
