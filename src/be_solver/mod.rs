@@ -71,11 +71,11 @@ impl<'n> BESolver<'n> {
         // Compute resistance conductance
         let g = 1.0 / resistor.get_resistance();
 
-        problem.get_coefficient_mut(p_eq, p_v).map(|a| *a += g);
-        problem.get_coefficient_mut(p_eq, n_v).map(|a| *a -= g);
+        problem.coefficient_add(p_eq, p_v, g);
+        problem.coefficient_add(p_eq, n_v, -g);
 
-        problem.get_coefficient_mut(n_eq, p_v).map(|a| *a += g);
-        problem.get_coefficient_mut(n_eq, n_v).map(|a| *a -= g);
+        problem.coefficient_add(n_eq, p_v, -g);
+        problem.coefficient_add(n_eq, n_v, g);
     }
 
     fn stamp_voltage_source(
@@ -91,14 +91,12 @@ impl<'n> BESolver<'n> {
         let n_v = VariableIndex::NodalVoltage(voltage_source.get_negative_node());
         let v_i = VariableIndex::VoltageSourceCurrent(voltage_source_index);
 
-        problem.get_coefficient_mut(p_eq, v_i).map(|a| *a -= 1.0);
-        problem.get_coefficient_mut(n_eq, v_i).map(|a| *a += 1.0);
+        problem.coefficient_add(p_eq, v_i, -1.0);
+        problem.coefficient_add(n_eq, v_i, 1.0);
 
-        problem.get_coefficient_mut(v_eq, p_v).map(|a| *a += 1.0);
-        problem.get_coefficient_mut(v_eq, n_v).map(|a| *a -= 1.0);
-        problem
-            .get_result_mut(v_eq)
-            .map(|a| *a += voltage_source.get_voltage());
+        problem.coefficient_add(v_eq, p_v, 1.0);
+        problem.coefficient_add(v_eq, n_v, -1.0);
+        problem.result_add(v_eq, voltage_source.get_voltage());
     }
 
     fn update_resistor(resistor: &mut Resistor, _resistor_index: usize, solution: &XMatrix) {

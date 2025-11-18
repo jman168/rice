@@ -89,20 +89,26 @@ impl Netlist {
     }
 }
 
+impl Default for Netlist {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Debug for Netlist {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Netlist:\n")?;
-        write!(f, "\tResistors: [\n")?;
+        writeln!(f, "Netlist:")?;
+        writeln!(f, "\tResistors: [")?;
         for r in &self.resistors {
-            write!(f, "\t\t{:?},\n", r)?;
+            writeln!(f, "\t\t{:?},", r)?;
         }
-        write!(f, "\t]\n")?;
+        writeln!(f, "\t]")?;
 
-        write!(f, "\tVoltage Sources: [\n")?;
+        writeln!(f, "\tVoltage Sources: [")?;
         for v in &self.voltage_sources {
-            write!(f, "\t\t{:?},\n", v)?;
+            writeln!(f, "\t\t{:?},", v)?;
         }
-        write!(f, "\t]\n")
+        writeln!(f, "\t]")
     }
 }
 

@@ -122,11 +122,28 @@ impl ABMatrix {
         ))
     }
 
+    pub fn coefficient_add(
+        &mut self,
+        equation_index: EquationIndex,
+        variable_index: VariableIndex,
+        value: f64,
+    ) {
+        if let Some(a) = self.get_coefficient_mut(equation_index, variable_index) {
+            *a += value;
+        }
+    }
+
     pub fn get_result_mut(&mut self, equation_index: EquationIndex) -> Option<&mut f64> {
         self.b.get_mut((
             equation_index.into_row(self.num_nodes, self.num_voltage_sources)?,
             0,
         ))
+    }
+
+    pub fn result_add(&mut self, equation_index: EquationIndex, value: f64) {
+        if let Some(a) = self.get_result_mut(equation_index) {
+            *a += value;
+        }
     }
 
     pub fn into_ab(self) -> (DMatrix<f64>, DMatrix<f64>) {
