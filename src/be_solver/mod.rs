@@ -150,6 +150,7 @@ mod test {
 
         assert_eq!(netlist.get_voltages_sources()[0].get_current(), 5.0);
         assert_eq!(netlist.get_voltages_sources()[0].get_power(), 50.0);
+        assert_eq!(netlist.get_resistors()[0].get_voltage(), 10.0);
         assert_eq!(netlist.get_resistors()[0].get_current(), 5.0);
         assert_eq!(netlist.get_resistors()[0].get_power(), 50.0);
     }
@@ -168,8 +169,32 @@ mod test {
 
         assert_eq!(netlist.get_voltages_sources()[0].get_current(), 5.0);
         assert_eq!(netlist.get_voltages_sources()[0].get_power(), 50.0);
+        assert_eq!(netlist.get_resistors()[0].get_voltage(), -10.0);
         assert_eq!(netlist.get_resistors()[0].get_current(), -5.0);
         assert_eq!(netlist.get_resistors()[0].get_power(), 50.0);
+    }
+
+    #[test]
+    fn test_voltage_divider() {
+        let mut netlist = Netlist::new();
+        netlist
+            .add_voltage_source(VoltageSource::new(1, 0, 5.0))
+            .add_resistor(Resistor::new(1, 2, 4.0))
+            .add_resistor(Resistor::new(2, 0, 1.0));
+
+        let mut solver = BESolver::new(&mut netlist);
+        solver.solve(0.001);
+
+        println!("{:?}", netlist);
+
+        assert_eq!(netlist.get_voltages_sources()[0].get_current(), 1.0);
+        assert_eq!(netlist.get_voltages_sources()[0].get_power(), 5.0);
+        assert_eq!(netlist.get_resistors()[0].get_voltage(), 4.0);
+        assert_eq!(netlist.get_resistors()[0].get_current(), 1.0);
+        assert_eq!(netlist.get_resistors()[0].get_power(), 4.0);
+        assert_eq!(netlist.get_resistors()[1].get_voltage(), 1.0);
+        assert_eq!(netlist.get_resistors()[1].get_current(), 1.0);
+        assert_eq!(netlist.get_resistors()[1].get_power(), 1.0);
     }
 
     // #[test]
