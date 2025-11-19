@@ -1,6 +1,6 @@
 use crate::components::{Capacitor, CurrentSource, Inductor, Resistor, VoltageSource};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Component {
     Resistor(Resistor),
     Capacitor(Capacitor),
@@ -17,36 +17,6 @@ impl Component {
             Self::Inductor(c) => c.max_node(),
             Self::VoltageSource(c) => c.max_node(),
             Self::CurrentSource(c) => c.max_node(),
-        }
-    }
-
-    pub fn get_voltage(&self) -> f64 {
-        match self {
-            Self::Resistor(c) => c.get_voltage(),
-            Self::Capacitor(c) => c.get_voltage(),
-            Self::Inductor(c) => c.get_voltage(),
-            Self::VoltageSource(c) => c.get_voltage(),
-            Self::CurrentSource(c) => c.get_voltage(),
-        }
-    }
-
-    pub fn get_current(&self) -> f64 {
-        match self {
-            Self::Resistor(c) => c.get_current(),
-            Self::Capacitor(c) => c.get_current(),
-            Self::Inductor(c) => c.get_current(),
-            Self::VoltageSource(c) => c.get_current(),
-            Self::CurrentSource(c) => c.get_current(),
-        }
-    }
-
-    pub fn get_power(&self) -> f64 {
-        match self {
-            Self::Resistor(c) => c.get_power(),
-            Self::Capacitor(c) => c.get_power(),
-            Self::Inductor(c) => c.get_power(),
-            Self::VoltageSource(c) => c.get_power(),
-            Self::CurrentSource(c) => c.get_power(),
         }
     }
 }

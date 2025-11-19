@@ -91,26 +91,13 @@ mod test {
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            10.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            5.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            10.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            5.0,
-            max_relative = 0.001
-        );
+        let v: VoltageSource = netlist.get_components()[0].try_into().unwrap();
+        let r: Resistor = netlist.get_components()[1].try_into().unwrap();
+
+        assert_relative_eq!(v.get_voltage(), 10.0, max_relative = 0.001);
+        assert_relative_eq!(v.get_current(), 5.0, max_relative = 0.001);
+        assert_relative_eq!(r.get_voltage(), 10.0, max_relative = 0.001);
+        assert_relative_eq!(r.get_current(), 5.0, max_relative = 0.001);
     }
 
     #[test]
@@ -126,36 +113,16 @@ mod test {
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            10.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            2.5,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            5.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            2.5,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[2].get_voltage(),
-            5.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[2].get_current(),
-            -2.5,
-            max_relative = 0.001
-        );
+        let v1: VoltageSource = netlist.get_components()[0].try_into().unwrap();
+        let r: Resistor = netlist.get_components()[1].try_into().unwrap();
+        let v2: VoltageSource = netlist.get_components()[2].try_into().unwrap();
+
+        assert_relative_eq!(v1.get_voltage(), 10.0, max_relative = 0.001);
+        assert_relative_eq!(v1.get_current(), 2.5, max_relative = 0.001);
+        assert_relative_eq!(r.get_voltage(), 5.0, max_relative = 0.001);
+        assert_relative_eq!(r.get_current(), 2.5, max_relative = 0.001);
+        assert_relative_eq!(v2.get_voltage(), 5.0, max_relative = 0.001);
+        assert_relative_eq!(v2.get_current(), -2.5, max_relative = 0.001);
     }
 
     #[test]
@@ -171,36 +138,16 @@ mod test {
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            5.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            4.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[2].get_voltage(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[2].get_current(),
-            1.0,
-            max_relative = 0.001
-        );
+        let v: VoltageSource = netlist.get_components()[0].try_into().unwrap();
+        let r1: Resistor = netlist.get_components()[1].try_into().unwrap();
+        let r2: Resistor = netlist.get_components()[2].try_into().unwrap();
+
+        assert_relative_eq!(v.get_voltage(), 5.0, max_relative = 0.001);
+        assert_relative_eq!(v.get_current(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(r1.get_voltage(), 4.0, max_relative = 0.001);
+        assert_relative_eq!(r1.get_current(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(r2.get_voltage(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(r2.get_current(), 1.0, max_relative = 0.001);
     }
 
     #[test]
@@ -215,26 +162,13 @@ mod test {
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            10.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            5.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            10.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            5.0,
-            max_relative = 0.001
-        );
+        let i: CurrentSource = netlist.get_components()[0].try_into().unwrap();
+        let r: Resistor = netlist.get_components()[1].try_into().unwrap();
+
+        assert_relative_eq!(i.get_voltage(), 10.0, max_relative = 0.001);
+        assert_relative_eq!(i.get_current(), 5.0, max_relative = 0.001);
+        assert_relative_eq!(r.get_voltage(), 10.0, max_relative = 0.001);
+        assert_relative_eq!(r.get_current(), 5.0, max_relative = 0.001);
     }
 
     #[test]
@@ -249,52 +183,26 @@ mod test {
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            0.50,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            0.50,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            1.0,
-            max_relative = 0.001
-        );
+        let i: CurrentSource = netlist.get_components()[0].try_into().unwrap();
+        let c: Capacitor = netlist.get_components()[1].try_into().unwrap();
+
+        assert_relative_eq!(i.get_voltage(), 0.50, max_relative = 0.001);
+        assert_relative_eq!(i.get_current(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(c.get_voltage(), 0.50, max_relative = 0.001);
+        assert_relative_eq!(c.get_current(), 1.0, max_relative = 0.001);
 
         let mut solver = BESolver::new(&mut netlist);
         solver.solve(0.75);
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            2.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            2.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            1.0,
-            max_relative = 0.001
-        );
+        let i: CurrentSource = netlist.get_components()[0].try_into().unwrap();
+        let c: Capacitor = netlist.get_components()[1].try_into().unwrap();
+
+        assert_relative_eq!(i.get_voltage(), 2.0, max_relative = 0.001);
+        assert_relative_eq!(i.get_current(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(c.get_voltage(), 2.0, max_relative = 0.001);
+        assert_relative_eq!(c.get_current(), 1.0, max_relative = 0.001);
     }
 
     #[test]
@@ -312,36 +220,16 @@ mod test {
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            0.000367879441171,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            0.367879441171,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            0.000367879441171,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[2].get_voltage(),
-            0.632120558829,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[2].get_current(),
-            0.000367879441171,
-            max_relative = 0.001
-        );
+        let v: VoltageSource = netlist.get_components()[0].try_into().unwrap();
+        let r: Resistor = netlist.get_components()[1].try_into().unwrap();
+        let c: Capacitor = netlist.get_components()[2].try_into().unwrap();
+
+        assert_relative_eq!(v.get_voltage(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(v.get_current(), 0.000367879441171, max_relative = 0.001);
+        assert_relative_eq!(r.get_voltage(), 0.367879441171, max_relative = 0.001);
+        assert_relative_eq!(r.get_current(), 0.000367879441171, max_relative = 0.001);
+        assert_relative_eq!(c.get_voltage(), 0.632120558829, max_relative = 0.001);
+        assert_relative_eq!(c.get_current(), 0.000367879441171, max_relative = 0.001);
     }
 
     #[test]
@@ -356,52 +244,26 @@ mod test {
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            0.5,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            0.5,
-            max_relative = 0.001
-        );
+        let v: VoltageSource = netlist.get_components()[0].try_into().unwrap();
+        let l: Inductor = netlist.get_components()[1].try_into().unwrap();
+
+        assert_relative_eq!(v.get_voltage(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(v.get_current(), 0.5, max_relative = 0.001);
+        assert_relative_eq!(l.get_voltage(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(l.get_current(), 0.5, max_relative = 0.001);
 
         let mut solver = BESolver::new(&mut netlist);
         solver.solve(0.75);
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            2.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            2.0,
-            max_relative = 0.001
-        );
+        let v: VoltageSource = netlist.get_components()[0].try_into().unwrap();
+        let l: Inductor = netlist.get_components()[1].try_into().unwrap();
+
+        assert_relative_eq!(v.get_voltage(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(v.get_current(), 2.0, max_relative = 0.001);
+        assert_relative_eq!(l.get_voltage(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(l.get_current(), 2.0, max_relative = 0.001);
     }
 
     #[test]
@@ -419,35 +281,15 @@ mod test {
 
         println!("{:?}", netlist);
 
-        assert_relative_eq!(
-            netlist.get_components()[0].get_voltage(),
-            1.0,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[0].get_current(),
-            95.162581964,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_voltage(),
-            0.095162581964,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[1].get_current(),
-            95.162581964,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[2].get_voltage(),
-            0.904837418036,
-            max_relative = 0.001
-        );
-        assert_relative_eq!(
-            netlist.get_components()[2].get_current(),
-            95.162581964,
-            max_relative = 0.001
-        );
+        let v: VoltageSource = netlist.get_components()[0].try_into().unwrap();
+        let r: Resistor = netlist.get_components()[1].try_into().unwrap();
+        let l: Inductor = netlist.get_components()[2].try_into().unwrap();
+
+        assert_relative_eq!(v.get_voltage(), 1.0, max_relative = 0.001);
+        assert_relative_eq!(v.get_current(), 95.162581964, max_relative = 0.001);
+        assert_relative_eq!(r.get_voltage(), 0.095162581964, max_relative = 0.001);
+        assert_relative_eq!(r.get_current(), 95.162581964, max_relative = 0.001);
+        assert_relative_eq!(l.get_voltage(), 0.904837418036, max_relative = 0.001);
+        assert_relative_eq!(l.get_current(), 95.162581964, max_relative = 0.001);
     }
 }

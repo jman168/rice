@@ -1,5 +1,8 @@
 use std::fmt::Debug;
 
+use crate::components::Component;
+
+#[derive(Clone, Copy, PartialEq)]
 pub struct Capacitor {
     // Static variables
     positive_node: usize,
@@ -75,5 +78,16 @@ impl Debug for Capacitor {
             self.get_current(),
             self.get_power()
         )
+    }
+}
+
+impl TryFrom<Component> for Capacitor {
+    type Error = ();
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Capacitor(c) => Ok(c),
+            _ => Err(()),
+        }
     }
 }

@@ -1,5 +1,8 @@
 use std::fmt::Debug;
 
+use crate::components::Component;
+
+#[derive(Clone, Copy, PartialEq)]
 pub struct VoltageSource {
     // Static variables
     positive_node: usize,
@@ -58,5 +61,16 @@ impl Debug for VoltageSource {
             self.get_current(),
             self.get_power()
         )
+    }
+}
+
+impl TryFrom<Component> for VoltageSource {
+    type Error = ();
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::VoltageSource(c) => Ok(c),
+            _ => Err(()),
+        }
     }
 }

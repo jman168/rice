@@ -1,5 +1,8 @@
 use std::fmt::Debug;
 
+use crate::components::Component;
+
+#[derive(Clone, Copy, PartialEq)]
 pub struct Inductor {
     // Static variables
     positive_node: usize,
@@ -75,5 +78,16 @@ impl Debug for Inductor {
             self.get_current(),
             self.get_power()
         )
+    }
+}
+
+impl TryFrom<Component> for Inductor {
+    type Error = ();
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Inductor(c) => Ok(c),
+            _ => Err(()),
+        }
     }
 }
