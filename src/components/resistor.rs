@@ -20,6 +20,10 @@ impl Resistor {
         }
     }
 
+    pub fn max_node(&self) -> usize {
+        self.get_positive_node().max(self.get_negative_node())
+    }
+
     pub fn get_positive_node(&self) -> usize {
         self.positive_node
     }

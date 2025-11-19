@@ -1,6 +1,6 @@
 use crate::{
     be_solver::matrix_view::{ABMatrixView, ViewEquationIndex, ViewVariableIndex, XMatrixView},
-    components::{Capacitor, CurrentSource, Inductor, Resistor, VoltageSource},
+    components::{Capacitor, Component, CurrentSource, Inductor, Resistor, VoltageSource},
 };
 
 pub trait Stampable {
@@ -196,5 +196,37 @@ impl Stampable for CurrentSource {
             view.get_variable(positive_voltage_index).unwrap()
                 - view.get_variable(negative_voltage_index).unwrap(),
         );
+    }
+}
+
+impl Stampable for Component {
+    fn num_variables(&self) -> usize {
+        match self {
+            Self::Resistor(c) => c.num_variables(),
+            Self::Capacitor(c) => c.num_variables(),
+            Self::Inductor(c) => c.num_variables(),
+            Self::VoltageSource(c) => c.num_variables(),
+            Self::CurrentSource(c) => c.num_variables(),
+        }
+    }
+
+    fn stamp(&self, view: &mut ABMatrixView, dt: f64) {
+        match self {
+            Self::Resistor(c) => c.stamp(view, dt),
+            Self::Capacitor(c) => c.stamp(view, dt),
+            Self::Inductor(c) => c.stamp(view, dt),
+            Self::VoltageSource(c) => c.stamp(view, dt),
+            Self::CurrentSource(c) => c.stamp(view, dt),
+        }
+    }
+
+    fn update(&mut self, view: &XMatrixView, dt: f64) {
+        match self {
+            Self::Resistor(c) => c.update(view, dt),
+            Self::Capacitor(c) => c.update(view, dt),
+            Self::Inductor(c) => c.update(view, dt),
+            Self::VoltageSource(c) => c.update(view, dt),
+            Self::CurrentSource(c) => c.update(view, dt),
+        }
     }
 }
