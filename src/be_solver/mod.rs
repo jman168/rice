@@ -1,10 +1,12 @@
-mod matrix;
-use matrix::{ABMatrix, EquationIndex, VariableIndex};
+mod matrix_view;
+mod stampable;
 
-use crate::{
-    be_solver::matrix::XMatrix,
-    components::{Capacitor, CurrentSource, Inductor, Netlist, Resistor, VoltageSource},
-};
+use nalgebra::DMatrix;
+
+use matrix_view::{ABMatrixView, XMatrixView};
+use stampable::Stampable;
+
+use crate::components::Netlist;
 
 /// A Backward Euler method solver for solving transient circuits.
 pub struct BESolver<'n> {
@@ -31,288 +33,101 @@ impl<'n> BESolver<'n> {
         let num_nodes = self.netlist.get_num_nodes();
         let num_voltage_sources = self.netlist.get_voltages_sources().len();
 
-        let mut problem = ABMatrix::new(num_nodes, num_voltage_sources);
+        let mut a = DMatrix::zeros(
+            num_nodes + num_voltage_sources,
+            num_nodes + num_voltage_sources,
+        );
 
-        self.netlist
-            .get_resistors()
-            .iter()
-            .enumerate()
-            .for_each(|(i, c)| Self::stamp_resistor(c, i, &mut problem, dt));
+        let mut b = DMatrix::zeros(num_nodes + num_voltage_sources, 1);
 
-        self.netlist
-            .get_capacitors()
-            .iter()
-            .enumerate()
-            .for_each(|(i, c)| Self::stamp_capacitor(c, i, &mut problem, dt));
+        self.netlist.get_resistors().iter().for_each(|c| {
+            c.stamp(
+                &mut ABMatrixView::new(&mut a, &mut b, num_nodes, c.num_variables(), num_nodes),
+                dt,
+            )
+        });
 
-        self.netlist
-            .get_inductors()
-            .iter()
-            .enumerate()
-            .for_each(|(i, c)| Self::stamp_inductor(c, i, &mut problem, dt));
+        self.netlist.get_capacitors().iter().for_each(|c| {
+            c.stamp(
+                &mut ABMatrixView::new(&mut a, &mut b, num_nodes, c.num_variables(), num_nodes),
+                dt,
+            )
+        });
+
+        self.netlist.get_inductors().iter().for_each(|c| {
+            c.stamp(
+                &mut ABMatrixView::new(&mut a, &mut b, num_nodes, c.num_variables(), num_nodes),
+                dt,
+            )
+        });
 
         self.netlist
             .get_voltages_sources()
             .iter()
             .enumerate()
-            .for_each(|(i, c)| Self::stamp_voltage_source(c, i, &mut problem, dt));
+            .for_each(|(i, c)| {
+                c.stamp(
+                    &mut ABMatrixView::new(
+                        &mut a,
+                        &mut b,
+                        num_nodes,
+                        c.num_variables(),
+                        num_nodes + i,
+                    ),
+                    dt,
+                )
+            });
 
-        self.netlist
-            .get_current_sources()
-            .iter()
-            .enumerate()
-            .for_each(|(i, c)| Self::stamp_current_source(c, i, &mut problem, dt));
+        self.netlist.get_current_sources().iter().for_each(|c| {
+            c.stamp(
+                &mut ABMatrixView::new(&mut a, &mut b, num_nodes, c.num_variables(), num_nodes),
+                dt,
+            )
+        });
 
-        let (a, b) = problem.into_ab();
-        let solution = XMatrix::new(a.try_inverse().unwrap() * b, num_nodes, num_voltage_sources);
+        let x = a.try_inverse().unwrap() * b;
 
-        self.netlist
-            .get_resistors_mut()
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, c)| Self::update_resistor(c, i, &solution, dt));
+        self.netlist.get_resistors_mut().iter_mut().for_each(|c| {
+            c.update(
+                &XMatrixView::new(&x, num_nodes, c.num_variables(), num_nodes),
+                dt,
+            )
+        });
 
-        self.netlist
-            .get_capacitors_mut()
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, c)| Self::update_capacitor(c, i, &solution, dt));
+        self.netlist.get_capacitors_mut().iter_mut().for_each(|c| {
+            c.update(
+                &XMatrixView::new(&x, num_nodes, c.num_variables(), num_nodes),
+                dt,
+            )
+        });
 
-        self.netlist
-            .get_inductors_mut()
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, c)| Self::update_inductor(c, i, &solution, dt));
+        self.netlist.get_inductors_mut().iter_mut().for_each(|c| {
+            c.update(
+                &XMatrixView::new(&x, num_nodes, c.num_variables(), num_nodes),
+                dt,
+            )
+        });
 
         self.netlist
             .get_voltages_sources_mut()
             .iter_mut()
             .enumerate()
-            .for_each(|(i, c)| Self::update_voltage_source(c, i, &solution, dt));
+            .for_each(|(i, c)| {
+                c.update(
+                    &XMatrixView::new(&x, num_nodes, c.num_variables(), num_nodes + i),
+                    dt,
+                )
+            });
 
         self.netlist
             .get_current_sources_mut()
             .iter_mut()
-            .enumerate()
-            .for_each(|(i, c)| Self::update_current_source(c, i, &solution, dt));
-    }
-
-    fn stamp_resistor(
-        resistor: &Resistor,
-        _resistor_index: usize,
-        problem: &mut ABMatrix,
-        _dt: f64,
-    ) {
-        let positive_equation_index = EquationIndex::NodalEquation(resistor.get_positive_node());
-        let negative_equation_index = EquationIndex::NodalEquation(resistor.get_negative_node());
-
-        let positive_voltage_index = VariableIndex::NodalVoltage(resistor.get_positive_node());
-        let negative_voltage_index = VariableIndex::NodalVoltage(resistor.get_negative_node());
-
-        // Compute resistance conductance
-        let g = 1.0 / resistor.get_resistance();
-
-        // Current flowing out of positive node is (v_positive - v_negative) / R
-        problem.coefficient_add(positive_equation_index, positive_voltage_index, g);
-        problem.coefficient_add(positive_equation_index, negative_voltage_index, -g);
-
-        // Current flowing out of positive node is -(v_positive - v_negative) / R
-        problem.coefficient_add(negative_equation_index, positive_voltage_index, -g);
-        problem.coefficient_add(negative_equation_index, negative_voltage_index, g);
-    }
-
-    fn stamp_capacitor(
-        capacitor: &Capacitor,
-        _capacitor_index: usize,
-        problem: &mut ABMatrix,
-        dt: f64,
-    ) {
-        let positive_equation_index = EquationIndex::NodalEquation(capacitor.get_positive_node());
-        let negative_equation_index = EquationIndex::NodalEquation(capacitor.get_negative_node());
-
-        let positive_voltage_index = VariableIndex::NodalVoltage(capacitor.get_positive_node());
-        let negative_voltage_index = VariableIndex::NodalVoltage(capacitor.get_negative_node());
-
-        let c = capacitor.get_capacitance();
-
-        // The differential equation describing a capacitor is i = C*dv/dt.
-        // Discretizing we get i = C*(v_new - v_old)/dt.
-        // Further expanding this we get i = C*(v_positive - v_negative)/dt - C*v_old/dt.
-
-        // Current flowing out of the positive node is C*v_positive/dt - C*v_negative/dt - C*v_old/dt.
-        problem.coefficient_add(positive_equation_index, positive_voltage_index, c / dt);
-        problem.coefficient_add(positive_equation_index, negative_voltage_index, -c / dt);
-        problem.result_add(positive_equation_index, c * capacitor.get_voltage() / dt);
-
-        // Current flowing out of the negative node is -C*v_positive/dt + C*v_negative/dt + C*v_old/dt.
-        problem.coefficient_add(negative_equation_index, positive_voltage_index, -c / dt);
-        problem.coefficient_add(negative_equation_index, negative_voltage_index, c / dt);
-        problem.result_add(negative_equation_index, -c * capacitor.get_voltage() / dt);
-    }
-
-    fn stamp_inductor(
-        inductor: &Inductor,
-        _inductor_index: usize,
-        problem: &mut ABMatrix,
-        dt: f64,
-    ) {
-        let positive_equation_index = EquationIndex::NodalEquation(inductor.get_positive_node());
-        let negative_equation_index = EquationIndex::NodalEquation(inductor.get_negative_node());
-
-        let positive_voltage_index = VariableIndex::NodalVoltage(inductor.get_positive_node());
-        let negative_voltage_index = VariableIndex::NodalVoltage(inductor.get_negative_node());
-
-        let l = inductor.get_inductance();
-
-        // The differential equation describing an inductor is v = L*di/dt.
-        // Discretizing we get v = L*(i_new - i_old)/dt.
-        // Further expanding this we get v_positve - v_negative = L*(i_new - i_old)/dt.
-        // Doing some algebra to solver for i_new we get:
-        // i_new = v_positive*dt/L - v_negative*dt/L + i_old.
-
-        // Current flowing out of the positive node is v_positive*dt/L - v_negative*dt/L + i_old.
-        problem.coefficient_add(positive_equation_index, positive_voltage_index, dt / l);
-        problem.coefficient_add(positive_equation_index, negative_voltage_index, -dt / l);
-        problem.result_add(positive_equation_index, -inductor.get_current());
-
-        // Current flowing out of the negative node is -v_positive*dt/L + v_negative*dt/L - i_old.
-        problem.coefficient_add(negative_equation_index, positive_voltage_index, -dt / l);
-        problem.coefficient_add(negative_equation_index, negative_voltage_index, dt / l);
-        problem.result_add(negative_equation_index, inductor.get_current());
-    }
-
-    fn stamp_voltage_source(
-        voltage_source: &VoltageSource,
-        voltage_source_index: usize,
-        problem: &mut ABMatrix,
-        _dt: f64,
-    ) {
-        let positive_equation_index =
-            EquationIndex::NodalEquation(voltage_source.get_positive_node());
-        let negative_equation_index =
-            EquationIndex::NodalEquation(voltage_source.get_negative_node());
-        let source_equation_index = EquationIndex::VoltageSourceEquation(voltage_source_index);
-
-        let positive_voltage_index =
-            VariableIndex::NodalVoltage(voltage_source.get_positive_node());
-        let negative_voltage_index =
-            VariableIndex::NodalVoltage(voltage_source.get_negative_node());
-        let source_current_index = VariableIndex::VoltageSourceCurrent(voltage_source_index);
-
-        // Current flowing out of positive node is -i_source
-        problem.coefficient_add(positive_equation_index, source_current_index, -1.0);
-        // Current flowing out of negative node is i_source
-        problem.coefficient_add(negative_equation_index, source_current_index, 1.0);
-
-        // Source equation is v_positive - v_negative = v_source
-        problem.coefficient_add(source_equation_index, positive_voltage_index, 1.0);
-        problem.coefficient_add(source_equation_index, negative_voltage_index, -1.0);
-        problem.result_add(source_equation_index, voltage_source.get_voltage());
-    }
-
-    fn stamp_current_source(
-        current_source: &CurrentSource,
-        _current_source_index: usize,
-        problem: &mut ABMatrix,
-        _dt: f64,
-    ) {
-        let positive_equation_index =
-            EquationIndex::NodalEquation(current_source.get_positive_node());
-        let negative_equation_index =
-            EquationIndex::NodalEquation(current_source.get_negative_node());
-
-        // NOTE: the signs are flipped here because they take the form of constants, not
-        // coefficients.
-
-        // Current flowing out of positive node is -i_source
-        problem.result_add(positive_equation_index, current_source.get_current());
-        // Current flowing out of negative node is i_source
-        problem.result_add(negative_equation_index, -current_source.get_current());
-    }
-
-    fn update_resistor(
-        resistor: &mut Resistor,
-        _resistor_index: usize,
-        solution: &XMatrix,
-        _dt: f64,
-    ) {
-        let positive_voltage_index = VariableIndex::NodalVoltage(resistor.get_positive_node());
-        let negative_voltage_index = VariableIndex::NodalVoltage(resistor.get_negative_node());
-
-        resistor.set_voltage(
-            solution.get_variable(positive_voltage_index).unwrap()
-                - solution.get_variable(negative_voltage_index).unwrap(),
-        );
-    }
-
-    fn update_capacitor(
-        capacitor: &mut Capacitor,
-        _capacitor_index: usize,
-        solution: &XMatrix,
-        dt: f64,
-    ) {
-        let positive_voltage_index = VariableIndex::NodalVoltage(capacitor.get_positive_node());
-        let negative_voltage_index = VariableIndex::NodalVoltage(capacitor.get_negative_node());
-
-        let new_voltage = solution.get_variable(positive_voltage_index).unwrap()
-            - solution.get_variable(negative_voltage_index).unwrap();
-
-        // Discretized equation is i = C*(v_new - v_old)/dt (see capacitor stamping function).
-
-        capacitor.set_current(
-            capacitor.get_capacitance() * (new_voltage - capacitor.get_voltage()) / dt,
-        );
-
-        capacitor.set_voltage(new_voltage);
-    }
-
-    fn update_inductor(
-        inductor: &mut Inductor,
-        _inductor_index: usize,
-        solution: &XMatrix,
-        dt: f64,
-    ) {
-        let positive_voltage_index = VariableIndex::NodalVoltage(inductor.get_positive_node());
-        let negative_voltage_index = VariableIndex::NodalVoltage(inductor.get_negative_node());
-
-        inductor.set_voltage(
-            solution.get_variable(positive_voltage_index).unwrap()
-                - solution.get_variable(negative_voltage_index).unwrap(),
-        );
-
-        // Discretized equation is i_new = v_positive*dt/L - v_negative*dt/L + i_old (see inductor stamping function).
-
-        inductor.set_current(
-            inductor.get_voltage() * dt / inductor.get_inductance() + inductor.get_current(),
-        );
-    }
-
-    fn update_voltage_source(
-        voltage_source: &mut VoltageSource,
-        voltage_source_index: usize,
-        solution: &XMatrix,
-        _dt: f64,
-    ) {
-        let source_current_index = VariableIndex::VoltageSourceCurrent(voltage_source_index);
-
-        voltage_source.set_current(solution.get_variable(source_current_index).unwrap());
-    }
-
-    fn update_current_source(
-        current_source: &mut CurrentSource,
-        _current_source_index: usize,
-        solution: &XMatrix,
-        _dt: f64,
-    ) {
-        let positive_voltage_index =
-            VariableIndex::NodalVoltage(current_source.get_positive_node());
-        let negative_voltage_index =
-            VariableIndex::NodalVoltage(current_source.get_negative_node());
-
-        current_source.set_voltage(
-            solution.get_variable(positive_voltage_index).unwrap()
-                - solution.get_variable(negative_voltage_index).unwrap(),
-        );
+            .for_each(|c| {
+                c.update(
+                    &XMatrixView::new(&x, num_nodes, c.num_variables(), num_nodes),
+                    dt,
+                )
+            });
     }
 }
 
