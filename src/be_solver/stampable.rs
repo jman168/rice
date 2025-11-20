@@ -8,7 +8,11 @@ pub trait Stampable {
     fn num_variables(&self) -> usize;
 
     /// Stamps the coefficients of the component.
-    fn stamp(&self, view: &mut ABMatrixView, dt: f64);
+    ///
+    /// If this component is non-linear (needing Newton-Raphson iteration), it may choose to
+    /// compute its partials given the op_point XMatrixView. This is computed as either an initial
+    /// guess, or the solution to the last solve.
+    fn stamp(&self, view: &mut ABMatrixView, op_point: &XMatrixView, dt: f64);
 
     /// Updates the component state based on the given solution.
     fn update(&mut self, view: &XMatrixView, dt: f64);
@@ -19,7 +23,7 @@ impl Stampable for Resistor {
         0
     }
 
-    fn stamp(&self, view: &mut ABMatrixView, _dt: f64) {
+    fn stamp(&self, view: &mut ABMatrixView, _op_point: &XMatrixView, _dt: f64) {
         let positive_equation_index = ViewEquationIndex::NodalEquation(self.get_positive_node());
         let negative_equation_index = ViewEquationIndex::NodalEquation(self.get_negative_node());
 
@@ -54,7 +58,7 @@ impl Stampable for Capacitor {
         0
     }
 
-    fn stamp(&self, view: &mut ABMatrixView, dt: f64) {
+    fn stamp(&self, view: &mut ABMatrixView, _op_point: &XMatrixView, dt: f64) {
         let positive_equation_index = ViewEquationIndex::NodalEquation(self.get_positive_node());
         let negative_equation_index = ViewEquationIndex::NodalEquation(self.get_negative_node());
 
@@ -98,7 +102,7 @@ impl Stampable for Inductor {
         0
     }
 
-    fn stamp(&self, view: &mut ABMatrixView, dt: f64) {
+    fn stamp(&self, view: &mut ABMatrixView, _op_point: &XMatrixView, dt: f64) {
         let positive_equation_index = ViewEquationIndex::NodalEquation(self.get_positive_node());
         let negative_equation_index = ViewEquationIndex::NodalEquation(self.get_negative_node());
 
@@ -144,7 +148,7 @@ impl Stampable for VoltageSource {
         1
     }
 
-    fn stamp(&self, view: &mut ABMatrixView, _dt: f64) {
+    fn stamp(&self, view: &mut ABMatrixView, _op_point: &XMatrixView, _dt: f64) {
         let positive_equation_index = ViewEquationIndex::NodalEquation(self.get_positive_node());
         let negative_equation_index = ViewEquationIndex::NodalEquation(self.get_negative_node());
         let specific_equation_index = ViewEquationIndex::SpecificEquation(0);
@@ -175,7 +179,7 @@ impl Stampable for CurrentSource {
         0
     }
 
-    fn stamp(&self, view: &mut ABMatrixView, _dt: f64) {
+    fn stamp(&self, view: &mut ABMatrixView, _op_point: &XMatrixView, _dt: f64) {
         let positive_equation_index = ViewEquationIndex::NodalEquation(self.get_positive_node());
         let negative_equation_index = ViewEquationIndex::NodalEquation(self.get_negative_node());
 
@@ -210,13 +214,13 @@ impl Stampable for Component {
         }
     }
 
-    fn stamp(&self, view: &mut ABMatrixView, dt: f64) {
+    fn stamp(&self, view: &mut ABMatrixView, op_point: &XMatrixView, dt: f64) {
         match self {
-            Self::Resistor(c) => c.stamp(view, dt),
-            Self::Capacitor(c) => c.stamp(view, dt),
-            Self::Inductor(c) => c.stamp(view, dt),
-            Self::VoltageSource(c) => c.stamp(view, dt),
-            Self::CurrentSource(c) => c.stamp(view, dt),
+            Self::Resistor(c) => c.stamp(view, op_point, dt),
+            Self::Capacitor(c) => c.stamp(view, op_point, dt),
+            Self::Inductor(c) => c.stamp(view, op_point, dt),
+            Self::VoltageSource(c) => c.stamp(view, op_point, dt),
+            Self::CurrentSource(c) => c.stamp(view, op_point, dt),
         }
     }
 

@@ -38,27 +38,74 @@ impl<'n> BESolver<'n> {
             .map(|c| c.num_variables())
             .sum();
 
+        // Create matrices for the Ax=B linear system of equations.
         let mut a = DMatrix::zeros(num_nodes + num_variables, num_nodes + num_variables);
-
         let mut b = DMatrix::zeros(num_nodes + num_variables, 1);
+        let mut x = DMatrix::zeros(num_nodes + num_variables, 1);
 
-        self.netlist
-            .get_components()
-            .iter()
-            .fold(num_nodes, |variables_start, c| {
-                let mut view = ABMatrixView::new(
-                    &mut a,
-                    &mut b,
-                    num_nodes,
-                    c.num_variables(),
-                    variables_start,
-                );
-                c.stamp(&mut view, dt);
-                variables_start + c.num_variables()
-            });
+        // Variable for keeping track of how many iterations we have completed so far.
+        let mut iteration = 0;
 
-        let x = a.try_inverse().unwrap() * b;
+        loop {
+            // Bound the maximum number of iterations so we don't accidentally run forever.
+            if iteration >= 10 {
+                panic!("failed to solve in less than {} iterations", iteration);
+            }
 
+            // Reset the A and B matrices so they can be stamped in the next step.
+            a.fill(0.0);
+            b.fill(0.0);
+
+            // Stamp the matrices with all the components equations.
+            self.netlist
+                .get_components()
+                .iter()
+                .fold(num_nodes, |variables_start, c| {
+                    let mut view = ABMatrixView::new(
+                        &mut a,
+                        &mut b,
+                        num_nodes,
+                        c.num_variables(),
+                        variables_start,
+                    );
+                    let op_point =
+                        XMatrixView::new(&x, num_nodes, c.num_variables(), variables_start);
+                    c.stamp(&mut view, &op_point, dt);
+                    variables_start + c.num_variables()
+                });
+
+            // Try to invert the matrix in place.
+            if !a.try_inverse_mut() {
+                panic!("failed to invert problem matrix!");
+            }
+
+            // Compute the new solution to the equation.
+            let x_prime = &a * &b;
+
+            // Compute the tolerance for each solved parameter (fractional difference between the new iteration and old
+            // iteration).
+            let mut x_t = &x_prime - &x;
+            x_t.component_div_assign(&x_prime);
+            // We do this instead of .abs() as nalgebra has no native in place abs operation.
+            x_t.iter_mut().for_each(|x| *x = x.abs());
+
+            // Compute the overall tolerance of the entire matrix (worse case tolerance).
+            let tolerance = x_t.max();
+
+            // Update the solution matrix for later use.
+            x = x_prime;
+
+            // If we are happy with the solution, we are done!
+            if tolerance < 0.001 {
+                break;
+            }
+            // If we are not happy with the solution yet, try again.
+            else {
+                iteration += 1;
+            }
+        }
+
+        // Now that we are happy with the given solution, update all the components to reflect it.
         self.netlist
             .get_components_mut()
             .iter_mut()
