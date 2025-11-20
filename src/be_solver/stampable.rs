@@ -1,6 +1,6 @@
 use crate::{
     be_solver::matrix_view::{ABMatrixView, ViewEquationIndex, ViewVariableIndex, XMatrixView},
-    components::{Capacitor, Component, CurrentSource, Inductor, Resistor, VoltageSource},
+    components::{Capacitor, Component, CurrentSource, Diode, Inductor, Resistor, VoltageSource},
 };
 
 pub trait Stampable {
@@ -143,6 +143,54 @@ impl Stampable for Inductor {
     }
 }
 
+impl Stampable for Diode {
+    fn num_variables(&self) -> usize {
+        0
+    }
+
+    fn stamp(&self, view: &mut ABMatrixView, op_point: &XMatrixView, _dt: f64) {
+        let positive_equation_index = ViewEquationIndex::NodalEquation(self.get_positive_node());
+        let negative_equation_index = ViewEquationIndex::NodalEquation(self.get_negative_node());
+
+        let positive_voltage_index = ViewVariableIndex::NodeVoltage(self.get_positive_node());
+        let negative_voltage_index = ViewVariableIndex::NodeVoltage(self.get_negative_node());
+
+        let op_point_voltage = op_point.get_variable(positive_voltage_index).unwrap()
+            - op_point.get_variable(negative_voltage_index).unwrap();
+        let op_point_current = self.get_current_with_voltage(op_point_voltage);
+        let di_dv = self.get_di_dv(op_point_voltage);
+
+        // i_d = (v_new - v_op)*di/dv + i_op
+        // i_d = v_positve*di/dv - v_negative*di/dv - v_op*di/dv + i_op
+
+        // Current flowing out of positive node is i_d.
+        view.coefficient_add(positive_equation_index, positive_voltage_index, di_dv);
+        view.coefficient_add(positive_equation_index, negative_voltage_index, -di_dv);
+        view.result_add(
+            positive_equation_index,
+            op_point_voltage * di_dv - op_point_current,
+        );
+
+        // Current flowing out of negative node is -i_d.
+        view.coefficient_add(negative_equation_index, positive_voltage_index, -di_dv);
+        view.coefficient_add(negative_equation_index, negative_voltage_index, di_dv);
+        view.result_add(
+            negative_equation_index,
+            -op_point_voltage * di_dv + op_point_current,
+        );
+    }
+
+    fn update(&mut self, view: &XMatrixView, _dt: f64) {
+        let positive_voltage_index = ViewVariableIndex::NodeVoltage(self.get_positive_node());
+        let negative_voltage_index = ViewVariableIndex::NodeVoltage(self.get_negative_node());
+
+        self.set_voltage(
+            view.get_variable(positive_voltage_index).unwrap()
+                - view.get_variable(negative_voltage_index).unwrap(),
+        );
+    }
+}
+
 impl Stampable for VoltageSource {
     fn num_variables(&self) -> usize {
         1
@@ -209,6 +257,7 @@ impl Stampable for Component {
             Self::Resistor(c) => c.num_variables(),
             Self::Capacitor(c) => c.num_variables(),
             Self::Inductor(c) => c.num_variables(),
+            Self::Diode(c) => c.num_variables(),
             Self::VoltageSource(c) => c.num_variables(),
             Self::CurrentSource(c) => c.num_variables(),
         }
@@ -219,6 +268,7 @@ impl Stampable for Component {
             Self::Resistor(c) => c.stamp(view, op_point, dt),
             Self::Capacitor(c) => c.stamp(view, op_point, dt),
             Self::Inductor(c) => c.stamp(view, op_point, dt),
+            Self::Diode(c) => c.stamp(view, op_point, dt),
             Self::VoltageSource(c) => c.stamp(view, op_point, dt),
             Self::CurrentSource(c) => c.stamp(view, op_point, dt),
         }
@@ -229,6 +279,7 @@ impl Stampable for Component {
             Self::Resistor(c) => c.update(view, dt),
             Self::Capacitor(c) => c.update(view, dt),
             Self::Inductor(c) => c.update(view, dt),
+            Self::Diode(c) => c.update(view, dt),
             Self::VoltageSource(c) => c.update(view, dt),
             Self::CurrentSource(c) => c.update(view, dt),
         }

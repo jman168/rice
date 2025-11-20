@@ -48,8 +48,11 @@ impl<'n> BESolver<'n> {
 
         loop {
             // Bound the maximum number of iterations so we don't accidentally run forever.
-            if iteration >= 10 {
-                panic!("failed to solve in less than {} iterations", iteration);
+            if iteration >= 1000 {
+                panic!(
+                    "failed to solve in less than {} iterations {:?}",
+                    iteration, x
+                );
             }
 
             // Reset the A and B matrices so they can be stamped in the next step.
@@ -96,7 +99,7 @@ impl<'n> BESolver<'n> {
             x = x_prime;
 
             // If we are happy with the solution, we are done!
-            if tolerance < 0.001 {
+            if tolerance < 1e-4 {
                 break;
             }
             // If we are not happy with the solution yet, try again.
@@ -121,7 +124,7 @@ impl<'n> BESolver<'n> {
 mod test {
     use crate::{
         BESolver,
-        components::{Capacitor, CurrentSource, Inductor, Netlist, Resistor, VoltageSource},
+        components::{Capacitor, CurrentSource, Diode, Inductor, Netlist, Resistor, VoltageSource},
     };
 
     use approx::assert_relative_eq;
@@ -338,5 +341,31 @@ mod test {
         assert_relative_eq!(r.get_current(), 95.162581964, max_relative = 0.001);
         assert_relative_eq!(l.get_voltage(), 0.904837418036, max_relative = 0.001);
         assert_relative_eq!(l.get_current(), 95.162581964, max_relative = 0.001);
+    }
+
+    #[test]
+    fn test_r_diode() {
+        let mut netlist = Netlist::new();
+        netlist
+            .add_component(VoltageSource::new(1, 0, 10.0))
+            .add_component(Resistor::new(1, 2, 10.0))
+            // Approximately a Vishay 1N4148 just for fun
+            .add_component(Diode::new(2, 0, 25.0e-9, 2.0, 26.0e-3));
+
+        let mut solver = BESolver::new(&mut netlist);
+        solver.solve(0.001);
+
+        println!("{:?}", netlist);
+
+        let v: VoltageSource = netlist.get_components()[0].try_into().unwrap();
+        let r: Resistor = netlist.get_components()[1].try_into().unwrap();
+        let d: Diode = netlist.get_components()[2].try_into().unwrap();
+
+        assert_relative_eq!(v.get_voltage(), 10.0, max_relative = 0.001);
+        assert_relative_eq!(v.get_current(), 0.9094706, max_relative = 0.001);
+        assert_relative_eq!(r.get_voltage(), 9.094706, max_relative = 0.001);
+        assert_relative_eq!(r.get_current(), 0.9094706, max_relative = 0.001);
+        assert_relative_eq!(d.get_voltage(), 0.905294, max_relative = 0.001);
+        assert_relative_eq!(d.get_current(), 0.9094706, max_relative = 0.001);
     }
 }

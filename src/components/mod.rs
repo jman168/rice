@@ -7,6 +7,9 @@ pub use capacitor::Capacitor;
 mod inductor;
 pub use inductor::Inductor;
 
+mod diode;
+pub use diode::Diode;
+
 mod voltage_source;
 pub use voltage_source::VoltageSource;
 
